@@ -1,0 +1,596 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>PvP Ultimate Coach</title>
+  <style>
+    body { font-family: system-ui, -apple-system, sans-serif; background: #0f172a; color: #e5e7eb; display: flex; flex-direction: column; align-items: center; padding: 0; margin: 0; min-height: 100vh; }
+    
+    .tab-bar { display: flex; width: 100%; background: #1e293b; border-bottom: 2px solid #334155; position: sticky; top: 0; z-index: 100; }
+    .tab-btn { flex: 1; padding: 18px; border: none; background: none; color: #94a3b8; font-weight: 800; text-transform: uppercase; cursor: pointer; transition: 0.3s; font-size: 0.9rem; letter-spacing: 1px; }
+    .tab-btn.active { color: #38bdf8; border-bottom: 3px solid #38bdf8; background: #0f172a; }
+
+    .content-area { padding: 20px; width: 100%; max-width: 1000px; display: flex; flex-direction: column; align-items: center; }
+    
+    .stats-bar { display: flex; justify-content: space-between; width: 100%; max-width: 450px; margin-bottom: 15px; color: #38bdf8; font-weight: 800; font-family: monospace; }
+    
+    .controls { display: flex; gap: 10px; margin-bottom: 20px; flex-wrap: wrap; justify-content: center; width: 100%; }
+    select, .search-input { background: #020617; color: white; border: 1px solid #475569; padding: 12px 15px; border-radius: 8px; font-size: 0.9rem; flex-grow: 1; max-width: 300px; }
+
+    .game-layout { display: flex; flex-direction: column; gap: 20px; width: 100%; align-items: center; }
+    
+    @media (min-width: 850px) {
+        .game-layout { flex-direction: row; justify-content: center; align-items: flex-start; }
+    }
+
+    .card { background: #020617; border-radius: 24px; padding: 30px; border: 1px solid #1e293b; box-shadow: 0 20px 40px -10px rgba(0,0,0,0.5); }
+    .quiz-card { width: 100%; max-width: 420px; text-align: center; }
+    .type-card { width: 100%; max-width: 320px; }
+
+    .pokemon-name { font-size: 2.2rem; font-weight: 900; color: #fbbf24; margin-bottom: 8px; }
+    .type-display { font-weight: 800; font-size: 0.8rem; color: #64748b; margin-bottom: 15px; text-transform: uppercase; border-bottom: 1px solid #1e293b; padding-bottom: 8px; }
+    .turn-badge { background: #2563eb; color: white; padding: 6px 20px; border-radius: 99px; font-size: 0.9rem; font-weight: 800; margin-bottom: 20px; display: inline-block; }
+
+    .choices { display: flex; flex-direction: column; gap: 10px; }
+    .opt { padding: 18px; border-radius: 12px; border: 2px solid #334155; background: #1e293b; color: white; font-family: 'JetBrains Mono', monospace; font-size: 1.3rem; font-weight: bold; cursor: pointer; transition: 0.2s; }
+    .opt:hover:not(:disabled) { border-color: #38bdf8; }
+    .correct { background: #16a34a !important; border-color: #22c55e !important; color: white !important; }
+    .wrong { background: #dc2626 !important; border-color: #ef4444 !important; color: white !important; }
+
+    .poke-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 15px; width: 100%; }
+    .poke-list-item { background: #1e293b; padding: 20px; border-radius: 15px; border: 1px solid #334155; cursor: pointer; text-align: center; position: relative; }
+    .league-tag { position: absolute; top: 8px; right: 8px; font-size: 0.6rem; background: #020617; padding: 2px 6px; border-radius: 4px; color: #38bdf8; font-weight: 900; }
+    .rank-tag { position: absolute; top: 8px; left: 8px; font-size: 0.7rem; color: #fbbf24; font-weight: 900; }
+    .poke-list-item h3 { margin: 8px 0 0 0; color: #fbbf24; }
+
+    .back-btn { width: 100%; background: #334155; color: white; border: none; padding: 12px; border-radius: 8px; cursor: pointer; margin-bottom: 20px; font-weight: bold; }
+
+    .graph-row { margin-bottom: 12px; }
+    .graph-info { display: flex; justify-content: space-between; font-size: 0.8rem; margin-bottom: 4px; font-weight: 600; }
+    .bar-bg { background: #1e293b; height: 8px; border-radius: 4px; overflow: hidden; }
+    .bar-fill { height: 100%; border-radius: 4px; transition: width 0.6s ease; }
+    .weak-fill { background: #ef4444; }
+    .resist-fill { background: #22c55e; }
+    .immune-fill { background: #38bdf8; }
+
+    .move-item { background: #1e293b; padding: 12px; border-radius: 10px; margin: 8px 0; border-left: 4px solid #fbbf24; display: flex; justify-content: space-between; }
+    .hidden { display: none !important; }
+  </style>
+</head>
+<body>
+
+  <div class="tab-bar">
+    <button id="q-tab" class="tab-btn active" onclick="showTab('quiz')">Practice Quiz</button>
+    <button id="s-tab" class="tab-btn" onclick="showTab('search')">Search Database</button>
+  </div>
+
+  <div id="quiz-view" class="content-area">
+    <div class="stats-bar">
+      <span>SCORE: <span id="score">0</span></span>
+      <span>STREAK: <span id="streak">0</span></span>
+    </div>
+    <div class="controls">
+      <select id="leagueSelect" onchange="initQuiz()">
+        <option value="GL">Great League</option>
+        <option value="UL">Ultra League</option>
+        <option value="ML">Master League</option>
+      </select>
+      <select id="depthSelect" onchange="initQuiz()">
+        <option value="10">Top 10 Rank</option>
+        <option value="25">Top 25 Rank</option>
+        <option value="50">Top 50 Rank</option>
+        <option value="100">Top 100 Rank</option>
+      </select>
+    </div>
+
+    <div class="game-layout">
+      <div class="card quiz-card">
+        <div id="quiz-engine"></div>
+        <div id="feedback" style="min-height: 1.5em; margin-top:20px; font-weight:800; font-size:1.3rem;"></div>
+      </div>
+
+      <div class="card type-card">
+        <div id="q-types" class="type-display">TYPES: --</div>
+        <div id="weak-box"></div><div id="resist-box" style="margin-top:20px"></div>
+      </div>
+    </div>
+  </div>
+
+  <div id="search-view" class="content-area hidden">
+    <div class="controls">
+      <select id="searchLeagueFilter" onchange="handleSearch()">
+        <option value="GL">Great League Only</option>
+        <option value="UL">Ultra League Only</option>
+        <option value="ML">Master League Only</option>
+        <option value="ALL">All Leagues</option>
+      </select>
+      <input type="text" id="searchInput" class="search-input" placeholder="Search Pokemon..." oninput="handleSearch()">
+    </div>
+    <div id="search-list" class="poke-list"></div>
+    <div id="search-detail" class="game-layout hidden" style="flex-direction:column; align-items:center;">
+        <button class="back-btn" onclick="toggleSearchDetail(false)">← Back to Full List</button>
+        <div id="detail-content" class="game-layout"></div>
+    </div>
+  </div>
+
+  <script>
+    const database = {
+ML: [
+  { rank: 1, name: "Zacian (Crowned Sword)", types: ["Fairy", "Steel"], fast: "Metal Claw", turns: 2, charges: [{ n: "Close Combat", c: "7-"}, { n: "Behemoth Blade", c: "8" }] },
+  { rank: 2, name: "Palkia (Origin)", types: ["Water", "Dragon"], fast: "Dragon Breath", turns: 1, charges: [{ n: "Aqua Tail", c: "9"}, { n: "Spacial Rend", c: "14" }] },
+  { rank: 3, name: "Metagross", types: ["Steel", "Psychic"], fast: "Shadow Claw", turns: 2, charges: [{ n: "Meteor Mash", c: "6"}, { n: "Earthquake", c: "9-" }] },
+  { rank: 4, name: "Xerneas", types: ["Fairy"], fast: "Geomancy", turns: 3, charges: [{ n: "Close Combat", c: "4-"}, { n: "Moonblast", c: "5" }] },
+  { rank: 5, name: "Zamazenta (Crowned)", types: ["Fighting", "Steel"], fast: "Ice Fang", turns: 2, charges: [{ n: "Close Combat", c: "8-"}, { n: "Behemoth Bash", c: "8-" }] },
+  { rank: 6, name: "Kyurem (White)", types: ["Dragon", "Ice"], fast: "Dragon Breath", turns: 1, charges: [{ n: "Fusion Flare", c: "12-"}, { n: "Ice Burn", c: "15" }] },
+  { rank: 7, name: "Dialga (Origin)", types: ["Steel", "Dragon"], fast: "Dragon Breath", turns: 1, charges: [{ n: "Roar of Time", c: "17-"}, { n: "Iron Head", c: "13-" }] },
+  { rank: 8, name: "Reshiram", types: ["Dragon", "Fire"], fast: "Dragon Breath", turns: 1, charges: [{ n: "Fusion Flare", c: "12-"}, { n: "Draco Meteor", c: "17-" }] },
+  { rank: 9, name: "Lunala", types: ["Psychic", "Ghost"], fast: "Shadow Claw", turns: 2, charges: [{ n: "Shadow Ball", c: "7-"}, { n: "Moonblast", c: "8-" }] },
+  { rank: 10, name: "Zekrom", types: ["Dragon", "Electric"], fast: "Dragon Breath", turns: 1, charges: [{ n: "Outrage", c: "15"}, { n: "Fusion Bolt", c: "12-" }] },
+  { rank: 11, name: "Kyurem (Black)", types: ["Dragon", "Ice"], fast: "Dragon Tail", turns: 3, charges: [{ n: "Freeze Shock", c: "5"}, { n: "Fusion Bolt", c: "4" }] },
+  { rank: 12, name: "Metagross (Shadow)", types: ["Steel", "Psychic"], fast: "Shadow Claw", turns: 2, charges: [{ n: "Meteor Mash", c: "6"}, { n: "Earthquake", c: "9-" }] },
+  { rank: 13, name: "Lugia", types: ["Psychic", "Flying"], fast: "Dragon Tail", turns: 3, charges: [{ n: "Aeroblast", c: "7-"}, { n: "Fly", c: "4" }] },
+  { rank: 14, name: "Palkia (Shadow)", types: ["Water", "Dragon"], fast: "Dragon Breath", turns: 1, charges: [{ n: "Aqua Tail", c: "9"}, { n: "Draco Meteor", c: "17-" }] },
+  { rank: 15, name: "Eternatus", types: ["Poison", "Dragon"], fast: "Dragon Tail", turns: 3, charges: [{ n: "Dynamax Cannon", c: "4"}, { n: "Flamethrower", c: "5" }] },
+  { rank: 16, name: "Lugia (Shadow)", types: ["Psychic", "Flying"], fast: "Dragon Tail", turns: 3, charges: [{ n: "Aeroblast", c: "7-"}, { n: "Fly", c: "4" }] },
+  { rank: 17, name: "Yveltal", types: ["Dark", "Flying"], fast: "Sucker Punch", turns: 2, charges: [{ n: "Dark Pulse", c: "8-"}, { n: "Oblivion Wing", c: "8-" }] },
+  { rank: 18, name: "Necrozma (DW)", types: ["Psychic", "Ghost"], fast: "Shadow Claw", turns: 2, charges: [{ n: "Dark Pulse", c: "7-"}, { n: "Moongeist Beam", c: "9-" }] },
+  { rank: 19, name: "Ho-Oh", types: ["Fire", "Flying"], fast: "Incinerate", turns: 5, charges: [{ n: "Brave Bird", c: "3"}, { n: "Sacred Fire", c: "4-" }] },
+  { rank: 20, name: "Groudon", types: ["Ground"], fast: "Dragon Tail", turns: 3, charges: [{ n: "Fire Punch", c: "4-"}, { n: "Precipice Blades", c: "5" }] },
+  { rank: 21, name: "Necrozma (DM)", types: ["Psychic", "Steel"], fast: "Shadow Claw", turns: 2, charges: [{ n: "Dark Pulse", c: "7-"}, { n: "Sunsteel Strike", c: "9-" }] },
+  { rank: 22, name: "Meloetta (Aria)", types: ["Normal", "Psychic"], fast: "Confusion", turns: 4, charges: [{ n: "Psyshock", c: "3"}, { n: "Dazzling Gleam", c: "4" }] },
+  { rank: 23, name: "Kyogre", types: ["Water"], fast: "Waterfall", turns: 3, charges: [{ n: "Avalanche", c: "6"}, { n: "Origin Pulse", c: "8-" }] },
+  { rank: 24, name: "Latios (Shadow)", types: ["Dragon", "Psychic"], fast: "Dragon Breath", turns: 1, charges: [{ n: "Aura Sphere", c: "10"}, { n: "Luster Purge", c: "15" }] },
+  { rank: 25, name: "Palkia", types: ["Water", "Dragon"], fast: "Dragon Breath", turns: 1, charges: [{ n: "Aqua Tail", c: "9"}, { n: "Fire Blast", c: "20" }] },
+  { rank: 26, name: "Zygarde (Complete)", types: ["Dragon", "Ground"], fast: "Dragon Tail", turns: 3, charges: [{ n: "Crunch", c: "4"}, { n: "Earthquake", c: "6-" }] },
+  { rank: 27, name: "Dialga (Shadow)", types: ["Steel", "Dragon"], fast: "Dragon Breath", turns: 1, charges: [{ n: "Iron Head", c: "13-"}, { n: "Draco Meteor", c: "17-" }] },
+  { rank: 28, name: "Gholdengo", types: ["Steel", "Ghost"], fast: "Hex", turns: 3, charges: [{ n: "Shadow Ball", c: "4"}, { n: "Focus Blast", c: "6" }] },
+  { rank: 29, name: "Jirachi", types: ["Steel", "Psychic"], fast: "Confusion", turns: 4, charges: [{ n: "Doom Desire", c: "3"}, { n: "Aura Sphere", c: "3" }] },
+  { rank: 30, name: "Solgaleo", types: ["Psychic", "Steel"], fast: "Fire Spin", turns: 3, charges: [{ n: "Psychic Fangs", c: "4-"}, { n: "Iron Head", c: "5" }] },
+  { rank: 31, name: "Florges", types: ["Fairy"], fast: "Fairy Wind", turns: 2, charges: [{ n: "Moonblast", c: "7"}, { n: "Chilling Water", c: "5" }] },
+  { rank: 32, name: "Dialga", types: ["Steel", "Dragon"], fast: "Dragon Breath", turns: 1, charges: [{ n: "Iron Head", c: "13-"}, { n: "Draco Meteor", c: "17-" }] },
+  { rank: 33, name: "Annihilape (Shadow)", types: ["Fighting", "Ghost"], fast: "Counter", turns: 2, charges: [{ n: "Rage Fist", c: "6"}, { n: "Ice Punch", c: "7" }] },
+  { rank: 34, name: "Latios", types: ["Dragon", "Psychic"], fast: "Dragon Breath", turns: 1, charges: [{ n: "Aura Sphere", c: "10"}, { n: "Luster Purge", c: "15" }] },
+  { rank: 35, name: "Togekiss", types: ["Fairy", "Flying"], fast: "Peck", turns: 2, charges: [{ n: "Dazzling Gleam", c: "7"}, { n: "Aura Sphere", c: "5" }] },
+  { rank: 36, name: "Latias (Shadow)", types: ["Dragon", "Psychic"], fast: "Dragon Breath", turns: 1, charges: [{ n: "Aura Sphere", c: "10"}, { n: "Mist Ball", c: "15" }] },
+  { rank: 37, name: "Hydreigon (Shadow)", types: ["Dark", "Dragon"], fast: "Dragon Breath", turns: 1, charges: [{ n: "Brutal Swing", c: "9"}, { n: "Fly", c: "12-" }] },
+  { rank: 38, name: "Tapu Lele", types: ["Psychic", "Fairy"], fast: "Astonish", turns: 3, charges: [{ n: "Psyshock", c: "4"}, { n: "Nature's Madness", c: "5" }] },
+  { rank: 39, name: "Primarina", types: ["Water", "Fairy"], fast: "Charm", turns: 3, charges: [{ n: "Disarming Voice", c: "6"}, { n: "Hydro Cannon", c: "5" }] },
+  { rank: 40, name: "Annihilape", types: ["Fighting", "Ghost"], fast: "Counter", turns: 2, charges: [{ n: "Rage Fist", c: "6"}, { n: "Ice Punch", c: "7" }] },
+  { rank: 41, name: "Tyranitar (Shadow)", types: ["Rock", "Dark"], fast: "Dragon Breath", turns: 1, charges: [{ n: "Brutal Swing", c: "9"}, { n: "Stone Edge", c: "14" }] },
+  { rank: 42, name: "Latias", types: ["Dragon", "Psychic"], fast: "Dragon Breath", turns: 1, charges: [{ n: "Aura Sphere", c: "10"}, { n: "Mist Ball", c: "15" }] },
+  { rank: 43, name: "Landorus (T)", types: ["Ground", "Flying"], fast: "Mud Shot", turns: 2, charges: [{ n: "Sandsear Storm", c: "6"}, { n: "Stone Edge", c: "7" }] },
+  { rank: 44, name: "Kyurem", types: ["Dragon", "Ice"], fast: "Dragon Breath", turns: 1, charges: [{ n: "Glaciate", c: "10"}, { n: "Dragon Claw", c: "13-" }] },
+  { rank: 45, name: "Dragonite (Shadow)", types: ["Dragon", "Flying"], fast: "Dragon Breath", turns: 1, charges: [{ n: "Thunder Punch", c: "10"}, { n: "Superpower", c: "10" }] },
+  { rank: 46, name: "Groudon (Shadow)", types: ["Ground"], fast: "Dragon Tail", turns: 3, charges: [{ n: "Precipice Blades", c: "5"}, { n: "Fire Punch", c: "4-" }] },
+  { rank: 47, name: "Goodra", types: ["Dragon"], fast: "Dragon Breath", turns: 1, charges: [{ n: "Aqua Tail", c: "9"}, { n: "Draco Meteor", c: "17-" }] },
+  { rank: 48, name: "Urshifu (SS)", types: ["Fighting", "Dark"], fast: "Sucker Punch", turns: 2, charges: [{ n: "Dynamic Punch", c: "7-"}, { n: "Payback", c: "9" }] },
+  { rank: 49, name: "Keldeo (Resolute)", types: ["Water", "Fighting"], fast: "Poison Jab", turns: 2, charges: [{ n: "Secret Sword", c: "5"}, { n: "Aqua Jet", c: "6" }] },
+  { rank: 50, name: "Ho-Oh (Shadow)", types: ["Fire", "Flying"], fast: "Incinerate", turns: 5, charges: [{ n: "Brave Bird", c: "3"}, { n: "Sacred Fire", c: "4-" }] },
+  { rank: 51, name: "Gyarados", types: ["Water", "Flying"], fast: "Dragon Breath", turns: 1, charges: [{ n: "Aqua Tail", c: "9"}, { n: "Crunch", c: "12-" }] },
+  { rank: 52, name: "Mewtwo", types: ["Psychic"], fast: "Psycho Cut", turns: 2, charges: [{ n: "Psystrike", c: "5"}, { n: "Shadow Ball", c: "6" }] },
+  { rank: 53, name: "Rhyperior", types: ["Ground", "Rock"], fast: "Mud Slap", turns: 3, charges: [{ n: "Breaking Swipe", c: "5"}, { n: "Rock Wrecker", c: "5" }] },
+  { rank: 54, name: "Heatran (Shadow)", types: ["Fire", "Steel"], fast: "Fire Spin", turns: 3, charges: [{ n: "Magma Storm", c: "4"}, { n: "Stone Edge", c: "6-" }] },
+  { rank: 55, name: "Garchomp (Shadow)", types: ["Dragon", "Ground"], fast: "Dragon Tail", turns: 3, charges: [{ n: "Breaking Swipe", c: "5-"}, { n: "Earth Power", c: "5" }] },
+  { rank: 56, name: "Gyarados (Shadow)", types: ["Water", "Flying"], fast: "Dragon Breath", turns: 1, charges: [{ n: "Aqua Tail", c: "9"}, { n: "Crunch", c: "12-" }] },
+  { rank: 57, name: "Dragonite", types: ["Dragon", "Flying"], fast: "Dragon Breath", turns: 1, charges: [{ n: "Thunder Punch", c: "10"}, { n: "Superpower", c: "10" }] },
+  { rank: 58, name: "Enamorus (T)", types: ["Fairy", "Flying"], fast: "Fairy Wind", turns: 2, charges: [{ n: "Mystical Fire", c: "5"}, { n: "Moonblast", c: "7" }] },
+  { rank: 59, name: "Tyranitar", types: ["Rock", "Dark"], fast: "Dragon Breath", turns: 1, charges: [{ n: "Brutal Swing", c: "9"}, { n: "Stone Edge", c: "14" }] },
+  { rank: 60, name: "Marshadow", types: ["Fighting", "Ghost"], fast: "Sucker Punch", turns: 2, charges: [{ n: "Close Combat", c: "7-"}, { n: "Ice Punch", c: "6" }] },
+  { rank: 61, name: "Garchomp", types: ["Dragon", "Ground"], fast: "Dragon Tail", turns: 3, charges: [{ n: "Breaking Swipe", c: "5-"}, { n: "Earth Power", c: "5" }] },
+  { rank: 62, name: "Melmetal", types: ["Steel"], fast: "Thunder Shock", turns: 2, charges: [{ n: "Double Iron Bash", c: "4"}, { n: "Thunderbolt", c: "7-" }] },
+  { rank: 63, name: "Raikou (Shadow)", types: ["Electric"], fast: "Thunder Shock", turns: 2, charges: [{ n: "Wild Charge", c: "5"}, { n: "Aura Sphere", c: "5-" }] },
+  { rank: 64, name: "Zapdos (Shadow)", types: ["Electric", "Flying"], fast: "Thunder Shock", turns: 2, charges: [{ n: "Drill Peck", c: "5-"}, { n: "Thunderbolt", c: "7-" }] },
+  { rank: 65, name: "Victini", types: ["Psychic", "Fire"], fast: "Confusion", turns: 4, charges: [{ n: "V-Create", c: "3"}, { n: "Psyshock", c: "3" }] },
+  { rank: 66, name: "Raikou", types: ["Electric"], fast: "Thunder Shock", turns: 2, charges: [{ n: "Aura Sphere", c: "5-"}, { n: "Wild Charge", c: "5" }] },
+  { rank: 67, name: "Mewtwo (Armored)", types: ["Psychic"], fast: "Confusion", turns: 4, charges: [{ n: "Psystrike", c: "4-"}, { n: "Dynamic Punch", c: "4-" }] },
+  { rank: 68, name: "Giratina (Origin)", types: ["Ghost", "Dragon"], fast: "Dragon Tail", turns: 3, charges: [{ n: "Shadow Ball", c: "5-"}, { n: "Ominous Wind", c: "4" }] },
+  { rank: 69, name: "Rhyperior (Shadow)", types: ["Ground", "Rock"], fast: "Mud Slap", turns: 3, charges: [{ n: "Breaking Swipe", c: "5"}, { n: "Rock Wrecker", c: "5" }] },
+  { rank: 70, name: "Salamence (Shadow)", types: ["Dragon", "Flying"], fast: "Dragon Tail", turns: 3, charges: [{ n: "Fly", c: "4"}, { n: "Brutal Swing", c: "3" }] },
+  { rank: 71, name: "Keldeo (Ordinary)", types: ["Water", "Fighting"], fast: "Poison Jab", turns: 2, charges: [{ n: "Aqua Jet", c: "6"}, { n: "Sacred Sword", c: "5" }] },
+  { rank: 72, name: "Giratina (Altered Shadow)", types: ["Ghost", "Dragon"], fast: "Dragon Breath", turns: 1, charges: [{ n: "Ancient Power", c: "12-"}, { n: "Dragon Claw", c: "13-" }] },
+  { rank: 73, name: "Kartana", types: ["Grass", "Steel"], fast: "Fury Cutter", turns: 1, charges: [{ n: "Leaf Blade", c: "9"}, { n: "Sacred Sword", c: "9" }] },
+  { rank: 74, name: "Zapdos", types: ["Electric", "Flying"], fast: "Thunder Shock", turns: 2, charges: [{ n: "Drill Peck", c: "5-"}, { n: "Thunderbolt", c: "7-" }] },
+  { rank: 75, name: "Baxcalibur", types: ["Dragon", "Ice"], fast: "Dragon Breath", turns: 1, charges: [{ n: "Avalanche", c: "12-"}, { n: "Dragon Claw", c: "13-" }] },
+  { rank: 76, name: "Heatran", types: ["Fire", "Steel"], fast: "Fire Spin", turns: 3, charges: [{ n: "Magma Storm", c: "4"}, { n: "Iron Head", c: "5" }] },
+  { rank: 77, name: "Genesect (Chill)", types: ["Bug", "Steel"], fast: "Fury Cutter", turns: 1, charges: [{ n: "Magnet Bomb", c: "12-"}, { n: "Techno Blast", c: "14" }] },
+  { rank: 78, name: "Zacian (Hero)", types: ["Fairy"], fast: "Quick Attack", turns: 2, charges: [{ n: "Wild Charge", c: "6"}, { n: "Play Rough", c: "8-" }] },
+  { rank: 79, name: "Hydreigon", types: ["Dark", "Dragon"], fast: "Dragon Breath", turns: 1, charges: [{ n: "Brutal Swing", c: "9"}, { n: "Flash Cannon", c: "18-" }] },
+  { rank: 80, name: "Zamazenta (Hero)", types: ["Fighting"], fast: "Ice Fang", turns: 2, charges: [{ n: "Close Combat", c: "8-"}, { n: "Crunch", c: "8-" }] },
+  { rank: 81, name: "Golisopod", types: ["Bug", "Water"], fast: "Fury Cutter", turns: 1, charges: [{ n: "Aqua Jet", c: "10"}, { n: "X-Scissor", c: "10" }] },
+  { rank: 82, name: "Avalugg (Hisuian)", types: ["Ice", "Rock"], fast: "Powder Snow", turns: 2, charges: [{ n: "Rock Slide", c: "6"}, { n: "Icy Wind", c: "6" }] },
+  { rank: 83, name: "Giratina (Altered)", types: ["Ghost", "Dragon"], fast: "Dragon Breath", turns: 1, charges: [{ n: "Dragon Claw", c: "13-"}, { n: "Ancient Power", c: "12-" }] },
+  { rank: 84, name: "Urshifu (RS)", types: ["Fighting", "Water"], fast: "Counter", turns: 2, charges: [{ n: "Aqua Jet", c: "7"}, { n: "Dynamic Punch", c: "8-" }] },
+  { rank: 85, name: "Hippowdon (Shadow)", types: ["Ground"], fast: "Sand Attack", turns: 1, charges: [{ n: "Weather Ball Rock", c: "9"}, { n: "Earth Power", c: "14" }] },
+  { rank: 86, name: "Tapu Bulu", types: ["Grass", "Fairy"], fast: "Bullet Seed", turns: 3, charges: [{ n: "Grass Knot", c: "4"}, { n: "Nature's Madness", c: "4" }] },
+  { rank: 87, name: "Cobalion", types: ["Steel", "Fighting"], fast: "Double Kick", turns: 3, charges: [{ n: "Sacred Sword", c: "3"}, { n: "Stone Edge", c: "5" }] },
+  { rank: 88, name: "Kommo-o", types: ["Dragon", "Fighting"], fast: "Dragon Tail", turns: 3, charges: [{ n: "Clanging Scales", c: "4"}, { n: "Upper Hand", c: "4-" }] },
+  { rank: 89, name: "Tapu Fini", types: ["Water", "Fairy"], fast: "Water Gun", turns: 1, charges: [{ n: "Surf", c: "15"}, { n: "Nature's Madness", c: "17" }] },
+  { rank: 90, name: "Skeledirge", types: ["Fire", "Ghost"], fast: "Incinerate", turns: 5, charges: [{ n: "Torch Song", c: "3-"}, { n: "Shadow Ball", c: "3-" }] },
+  { rank: 91, name: "Volcanion", types: ["Fire", "Water"], fast: "Incinerate", turns: 5, charges: [{ n: "Sludge Bomb", c: "3-"}, { n: "Overheat", c: "3" }] },
+  { rank: 92, name: "Mamoswine (Shadow)", types: ["Ice", "Ground"], fast: "Powder Snow", turns: 2, charges: [{ n: "High Horsepower", c: "8-"}, { n: "Icicle Spear", c: "5" }] },
+  { rank: 93, name: "Hippowdon", types: ["Ground"], fast: "Sand Attack", turns: 1, charges: [{ n: "Weather Ball Rock", c: "9"}, { n: "Earth Power", c: "14" }] },
+  { rank: 94, name: "Mewtwo (Shadow)", types: ["Psychic"], fast: "Confusion", turns: 4, charges: [{ n: "Psystrike", c: "4-"}, { n: "Shadow Ball", c: "4" }] },
+  { rank: 95, name: "Sylveon", types: ["Fairy"], fast: "Charm", turns: 3, charges: [{ n: "Moonblast", c: "8-"}, { n: "Psyshock", c: "5" }] },
+  { rank: 96, name: "Ursaluna", types: ["Ground", "Normal"], fast: "Tackle", turns: 1, charges: [{ n: "Swift", c: "12"}, { n: "High Horsepower", c: "20" }] },
+  { rank: 97, name: "Conkeldurr (Shadow)", types: ["Fighting"], fast: "Counter", turns: 2, charges: [{ n: "Dynamic Punch", c: "8-"}, { n: "Brutal Swing", c: "6" }] },
+  { rank: 98, name: "Kyogre (Shadow)", types: ["Water"], fast: "Waterfall", turns: 3, charges: [{ n: "Avalanche", c: "6"}, { n: "Surf", c: "6" }] },
+  { rank: 99, name: "Mamoswine", types: ["Ice", "Ground"], fast: "Powder Snow", turns: 2, charges: [{ n: "Icicle Spear", c: "5"}, { n: "High Horsepower", c: "8-" }] },
+  { rank: 100, name: "Enamorus (I)", types: ["Fairy", "Flying"], fast: "Fairy Wind", turns: 2, charges: [{ n: "Fly", c: "5"}, { n: "Dazzling Gleam", c: "7-" }] }
+],
+      GL: [
+  { rank: 1, name: "Jellicent", types: ["Water", "Ghost"], fast: "Hex", turns: 3, charges: [{ n: "Surf", c: "4-"}, { n: "Shadow Ball", c: "4" }] },
+  { rank: 2, name: "Furret", types: ["Normal"], fast: "Sucker Punch", turns: 2, charges: [{ n: "Swift", c: "5"}, { n: "Trailblaze", c: "7-" }] },
+  { rank: 3, name: "Gastrodon", types: ["Water", "Ground"], fast: "Mud Slap", turns: 3, charges: [{ n: "Body Slam", c: "4-"}, { n: "Water Pulse", c: "5" }] },
+  { rank: 4, name: "Altaria", types: ["Dragon", "Flying"], fast: "Dragon Breath", turns: 1, charges: [{ n: "Sky Attack", c: "13-"}, { n: "Flamethrower", c: "14" }] },
+  { rank: 5, name: "Marowak (Shadow)", types: ["Ground"], fast: "Mud Slap", turns: 3, charges: [{ n: "Bone Club", c: "4-"}, { n: "Rock Slide", c: "5-" }] },
+  { rank: 6, name: "Azumarill", types: ["Water", "Fairy"], fast: "Bubble", turns: 3, charges: [{ n: "Ice Beam", c: "5"}, { n: "Play Rough", c: "6-" }] },
+  { rank: 7, name: "Corviknight", types: ["Flying", "Steel"], fast: "Sand Attack", turns: 1, charges: [{ n: "Air Cutter", c: "9"}, { n: "Payback", c: "15" }] },
+  { rank: 8, name: "Stunfisk", types: ["Ground", "Electric"], fast: "Thunder Shock", turns: 2, charges: [{ n: "Mud Bomb", c: "5-"}, { n: "Discharge", c: "5-" }] },
+  { rank: 9, name: "Wigglytuff", types: ["Normal", "Fairy"], fast: "Charm", turns: 3, charges: [{ n: "Icy Wind", c: "6"}, { n: "Swift", c: "5-" }] },
+  { rank: 10, name: "Lickilicky", types: ["Normal"], fast: "Rollout", turns: 3, charges: [{ n: "Body Slam", c: "3"}, { n: "Shadow Ball", c: "4" }] },
+  { rank: 11, name: "Bastiodon", types: ["Rock", "Steel"], fast: "Smack Down", turns: 3, charges: [{ n: "Stone Edge", c: "7"}, { n: "Flamethrower", c: "7" }] },
+  { rank: 12, name: "Corsola (Galarian)", types: ["Ghost"], fast: "Astonish", turns: 3, charges: [{ n: "Night Shade", c: "5-"}, { n: "Power Gem", c: "5" }] },
+  { rank: 13, name: "Dusknoir (Shadow)", types: ["Ghost"], fast: "Astonish", turns: 3, charges: [{ n: "Dynamic Punch", c: "5-"}, { n: "Shadow Punch", c: "4-" }] },
+  { rank: 14, name: "Empoleon", types: ["Water", "Steel"], fast: "Metal Sound", turns: 2, charges: [{ n: "Hydro Cannon", c: "5"}, { n: "Drill Peck", c: "5" }] },
+  { rank: 15, name: "Sealeo (Shadow)", types: ["Ice", "Water"], fast: "Powder Snow", turns: 2, charges: [{ n: "Surf", c: "6"}, { n: "Body Slam", c: "5-" }] },
+  { rank: 16, name: "Lapras", types: ["Water", "Ice"], fast: "Psywave", turns: 1, charges: [{ n: "Sparkling Aria", c: "12-"}, { n: "Ice Beam", c: "14" }] },
+  { rank: 17, name: "Malamar", types: ["Dark", "Psychic"], fast: "Psywave", turns: 1, charges: [{ n: "Superpower", c: "10"}, { n: "Foul Play", c: "10" }] },
+  { rank: 18, name: "Talonflame", types: ["Fire", "Flying"], fast: "Incinerate", turns: 5, charges: [{ n: "Fly", c: "3-"}, { n: "Brave Bird", c: "3" }] },
+  { rank: 19, name: "Empoleon (Shadow)", types: ["Water", "Steel"], fast: "Metal Sound", turns: 2, charges: [{ n: "Hydro Cannon", c: "5"}, { n: "Drill Peck", c: "5" }] },
+  { rank: 20, name: "Sealeo", types: ["Ice", "Water"], fast: "Powder Snow", turns: 2, charges: [{ n: "Surf", c: "6"}, { n: "Body Slam", c: "5-" }] },
+  { rank: 21, name: "Cradily", types: ["Rock", "Grass"], fast: "Acid", turns: 2, charges: [{ n: "Rock Tomb", c: "7-"}, { n: "Grass Knot", c: "7-" }] },
+  { rank: 22, name: "Doublade", types: ["Steel", "Ghost"], fast: "Shadow Claw", turns: 2, charges: [{ n: "Sacred Sword", c: "5-"}, { n: "Gyro Ball", c: "7-" }] },
+  { rank: 23, name: "Dusclops", types: ["Ghost"], fast: "Hex", turns: 3, charges: [{ n: "Ice Punch", c: "4-"}, { n: "Shadow Punch", c: "3" }] },
+  { rank: 24, name: "Guzzlord", types: ["Dark", "Dragon"], fast: "Dragon Tail", turns: 3, charges: [{ n: "Brutal Swing", c: "3"}, { n: "Sludge Bomb", c: "5-" }] },
+  { rank: 25, name: "Sableye", types: ["Dark", "Ghost"], fast: "Shadow Claw", turns: 2, charges: [{ n: "Foul Play", c: "5"}, { n: "Power Gem", c: "7-" }] },
+  { rank: 26, name: "Sableye (Shadow)", types: ["Dark", "Ghost"], fast: "Shadow Claw", turns: 2, charges: [{ n: "Foul Play", c: "5"}, { n: "Power Gem", c: "7-" }] },
+  { rank: 27, name: "Clefable", types: ["Fairy"], fast: "Fairy Wind", turns: 2, charges: [{ n: "Moonblast", c: "7"}, { n: "Meteor Mash", c: "5" }] },
+  { rank: 28, name: "Clodsire", types: ["Poison", "Ground"], fast: "Poison Sting", turns: 2, charges: [{ n: "Earthquake", c: "8-"}, { n: "Stone Edge", c: "7-" }] },
+  { rank: 29, name: "Grumpig", types: ["Psychic"], fast: "Psywave", turns: 1, charges: [{ n: "Dynamic Punch", c: "12-"}, { n: "Shadow Ball", c: "13-" }] },
+  { rank: 30, name: "Spidops", types: ["Bug"], fast: "Shadow Claw", turns: 2, charges: [{ n: "Lunge", c: "6"}, { n: "Rock Tomb", c: "7-" }] },
+  { rank: 31, name: "Sandslash (Alolan)", types: ["Ice", "Steel"], fast: "Powder Snow", turns: 2, charges: [{ n: "Ice Punch", c: "5"}, { n: "Drill Run", c: "6" }] },
+  { rank: 32, name: "Scizor (Shadow)", types: ["Bug", "Steel"], fast: "Bullet Punch", turns: 2, charges: [{ n: "Night Slash", c: "5"}, { n: "Trailblaze", c: "7-" }] },
+  { rank: 33, name: "Forretress (Shadow)", types: ["Bug", "Steel"], fast: "Bug Bite", turns: 1, charges: [{ n: "Sand Tomb", c: "14-"}, { n: "Rock Tomb", c: "17" }] },
+  { rank: 34, name: "Golisopod", types: ["Bug", "Water"], fast: "Fury Cutter", turns: 1, charges: [{ n: "X-Scissor", c: "10"}, { n: "Aqua Jet", c: "10" }] },
+  { rank: 35, name: "Lapras (Shadow)", types: ["Water", "Ice"], fast: "Psywave", turns: 1, charges: [{ n: "Sparkling Aria", c: "12-"}, { n: "Ice Beam", c: "14" }] },
+  { rank: 36, name: "Steelix (Shadow)", types: ["Steel", "Ground"], fast: "Thunder Fang", turns: 2, charges: [{ n: "Psychic Fangs", c: "6"}, { n: "Crunch", c: "8-" }] },
+  { rank: 37, name: "Talonflame (Shadow)", types: ["Fire", "Flying"], fast: "Incinerate", turns: 5, charges: [{ n: "Flame Charge", c: "3-"}, { n: "Fly", c: "3-" }] },
+  { rank: 38, name: "Blastoise", types: ["Water"], fast: "Rollout", turns: 3, charges: [{ n: "Hydro Cannon", c: "4-"}, { n: "Skull Bash", c: "6" }] },
+  { rank: 39, name: "Dusknoir", types: ["Ghost"], fast: "Astonish", turns: 3, charges: [{ n: "Dynamic Punch", c: "5-"}, { n: "Shadow Punch", c: "4-" }] },
+  { rank: 40, name: "Samurott", types: ["Water"], fast: "Fury Cutter", turns: 1, charges: [{ n: "Hydro Cannon", c: "10"}, { n: "Megahorn", c: "14" }] },
+  { rank: 41, name: "Annihilape", types: ["Fighting", "Ghost"], fast: "Counter", turns: 2, charges: [{ n: "Rage Fist", c: "6"}, { n: "Ice Punch", c: "7" }] },
+  { rank: 42, name: "Ninetales (Alolan)", types: ["Ice", "Fairy"], fast: "Powder Snow", turns: 2, charges: [{ n: "Weather Ball Ice", c: "5-"}, { n: "Chilling Water", c: "6" }] },
+  { rank: 43, name: "Oranguru", types: ["Normal", "Psychic"], fast: "Confusion", turns: 4, charges: [{ n: "Brutal Swing", c: "3-"}, { n: "Trailblaze", c: "4-" }] },
+  { rank: 44, name: "Toedscruel", types: ["Ground", "Grass"], fast: "Mud Slap", turns: 3, charges: [{ n: "Seed Bomb", c: "4"}, { n: "Wrap", c: "5-" }] },
+  { rank: 45, name: "Charjabug", types: ["Bug", "Electric"], fast: "Volt Switch", turns: 4, charges: [{ n: "X-Scissor", c: "3-"}, { n: "Discharge", c: "3-" }] },
+  { rank: 46, name: "Dunsparce", types: ["Normal"], fast: "Rollout", turns: 3, charges: [{ n: "Drill Run", c: "4-"}, { n: "Rock Slide", c: "4-" }] },
+  { rank: 47, name: "Gligar (Shadow)", types: ["Ground", "Flying"], fast: "Fury Cutter", turns: 1, charges: [{ n: "Night Slash", c: "9"}, { n: "Dig", c: "13-" }] },
+  { rank: 48, name: "Hakamo-o", types: ["Dragon", "Fighting"], fast: "Dragon Tail", turns: 3, charges: [{ n: "Brick Break", c: "4-"}, { n: "Rock Tomb", c: "5-" }] },
+  { rank: 49, name: "Kingdra", types: ["Water", "Dragon"], fast: "Dragon Breath", turns: 1, charges: [{ n: "Swift", c: "9"}, { n: "Outrage", c: "15" }] },
+  { rank: 50, name: "Annihilape (Shadow)", types: ["Fighting", "Ghost"], fast: "Counter", turns: 2, charges: [{ n: "Rage Fist", c: "6"}, { n: "Ice Punch", c: "7" }] },
+  { rank: 51, name: "Aurorus", types: ["Rock", "Ice"], fast: "Powder Snow", turns: 2, charges: [{ n: "Weather Ball Ice", c: "5-"}, { n: "Meteor Beam", c: "8-" }] },
+  { rank: 52, name: "Bastiodon (Shadow)", types: ["Rock", "Steel"], fast: "Smack Down", turns: 3, charges: [{ n: "Stone Edge", c: "7"}, { n: "Flamethrower", c: "7" }] },
+  { rank: 53, name: "Drapion", types: ["Poison", "Dark"], fast: "Poison Sting", turns: 2, charges: [{ n: "Crunch", c: "5"}, { n: "Aqua Tail", c: "4" }] },
+  { rank: 54, name: "Gligar", types: ["Ground", "Flying"], fast: "Fury Cutter", turns: 1, charges: [{ n: "Night Slash", c: "9"}, { n: "Dig", c: "13-" }] },
+  { rank: 55, name: "Malamar (Shadow)", types: ["Dark", "Psychic"], fast: "Psywave", turns: 1, charges: [{ n: "Foul Play", c: "10"}, { n: "Superpower", c: "10" }] },
+  { rank: 56, name: "Ninetales (Alolan Shadow)", types: ["Ice", "Fairy"], fast: "Powder Snow", turns: 2, charges: [{ n: "Weather Ball Ice", c: "5-"}, { n: "Chilling Water", c: "6" }] },
+  { rank: 57, name: "Dragonair", types: ["Dragon"], fast: "Dragon Breath", turns: 1, charges: [{ n: "Aqua Tail", c: "9"}, { n: "Dragon Pulse", c: "14" }] },
+  { rank: 58, name: "Dragonair (Shadow)", types: ["Dragon"], fast: "Dragon Breath", turns: 1, charges: [{ n: "Wrap", c: "12-"}, { n: "Aqua Tail", c: "9" }] },
+  { rank: 59, name: "Florges", types: ["Fairy"], fast: "Fairy Wind", turns: 2, charges: [{ n: "Chilling Water", c: "5"}, { n: "Trailblaze", c: "5" }] },
+  { rank: 60, name: "Moltres (Galarian)", types: ["Dark", "Flying"], fast: "Sucker Punch", turns: 2, charges: [{ n: "Fly", c: "7-"}, { n: "Brave Bird", c: "8" }] },
+  { rank: 61, name: "Dusclops (Shadow)", types: ["Ghost"], fast: "Hex", turns: 3, charges: [{ n: "Ice Punch", c: "4-"}, { n: "Shadow Punch", c: "3" }] },
+  { rank: 62, name: "Primeape (Shadow)", types: ["Fighting"], fast: "Karate Chop", turns: 2, charges: [{ n: "Rage Fist", c: "4"}, { n: "Ice Punch", c: "5-" }] },
+  { rank: 63, name: "Metang (Shadow)", types: ["Steel", "Psychic"], fast: "Fury Cutter", turns: 1, charges: [{ n: "Psyshock", c: "10"}, { n: "Gyro Ball", c: "13-" }] },
+  { rank: 64, name: "Weezing (Galarian Shadow)", types: ["Poison", "Fairy"], fast: "Fairy Wind", turns: 2, charges: [{ n: "Sludge", c: "5-"}, { n: "Brutal Swing", c: "4" }] },
+  { rank: 65, name: "Crustle", types: ["Bug", "Rock"], fast: "Fury Cutter", turns: 1, charges: [{ n: "X-Scissor", c: "10"}, { n: "Rock Wrecker", c: "13-" }] },
+  { rank: 66, name: "Mandibuzz", types: ["Dark", "Flying"], fast: "Snarl", turns: 3, charges: [{ n: "Foul Play", c: "4-"}, { n: "Shadow Ball", c: "4" }] },
+  { rank: 67, name: "Morgrem", types: ["Dark", "Fairy"], fast: "Sucker Punch", turns: 2, charges: [{ n: "Foul Play", c: "6"}, { n: "Play Rough", c: "9" }] },
+  { rank: 68, name: "Toucannon (Shadow)", types: ["Normal", "Flying"], fast: "Peck", turns: 2, charges: [{ n: "Beak Blast", c: "7"}, { n: "Drill Peck", c: "5" }] },
+  { rank: 69, name: "Feraligatr", types: ["Water"], fast: "Shadow Claw", turns: 2, charges: [{ n: "Hydro Cannon", c: "5"}, { n: "Ice Beam", c: "7" }] },
+  { rank: 70, name: "Grumpig (Shadow)", types: ["Psychic"], fast: "Psywave", turns: 1, charges: [{ n: "Dynamic Punch", c: "12-"}, { n: "Shadow Ball", c: "13-" }] },
+  { rank: 71, name: "Metang", types: ["Steel", "Psychic"], fast: "Fury Cutter", turns: 1, charges: [{ n: "Psyshock", c: "10"}, { n: "Gyro Ball", c: "13-" }] },
+  { rank: 72, name: "Scizor", types: ["Bug", "Steel"], fast: "Bullet Punch", turns: 2, charges: [{ n: "Night Slash", c: "5"}, { n: "Trailblaze", c: "7-" }] },
+  { rank: 73, name: "Cradily (Alt)", types: ["Rock", "Grass"], fast: "Bullet Seed", turns: 3, charges: [{ n: "Rock Tomb", c: "4"}, { n: "Grass Knot", c: "4" }] },
+  { rank: 74, name: "Drapion (Shadow)", types: ["Poison", "Dark"], fast: "Poison Sting", turns: 2, charges: [{ n: "Crunch", c: "5"}, { n: "Aqua Tail", c: "4" }] },
+  { rank: 75, name: "Kommo-o", types: ["Dragon", "Fighting"], fast: "Dragon Tail", turns: 3, charges: [{ n: "Clanging Scales", c: "4"}, { n: "Upper Hand", c: "4-" }] },
+  { rank: 76, name: "Togekiss", types: ["Fairy", "Flying"], fast: "Peck", turns: 2, charges: [{ n: "Psyshock", c: "5"}, { n: "Aura Sphere", c: "5" }] },
+  { rank: 77, name: "Murkrow", types: ["Dark", "Flying"], fast: "Peck", turns: 2, charges: [{ n: "Drill Peck", c: "5"}, { n: "Foul Play", c: "5" }] },
+  { rank: 78, name: "Seaking", types: ["Water"], fast: "Peck", turns: 2, charges: [{ n: "Drill Run", c: "6"}, { n: "Icy Wind", c: "6" }] },
+  { rank: 79, name: "Ludicolo", types: ["Water", "Grass"], fast: "Astonish", turns: 3, charges: [{ n: "Weather Ball Water", c: "4-"}, { n: "Leaf Storm", c: "6-" }] },
+  { rank: 80, name: "Sandslash (Alolan Shadow)", types: ["Ice", "Steel"], fast: "Powder Snow", turns: 2, charges: [{ n: "Ice Punch", c: "5"}, { n: "Drill Run", c: "6" }] },
+  { rank: 81, name: "Ninetales", types: ["Fire"], fast: "Ember", turns: 2, charges: [{ n: "Weather Ball Fire", c: "4"}, { n: "Overheat", c: "7-" }] },
+  { rank: 82, name: "Tinkaton", types: ["Fairy", "Steel"], fast: "Fairy Wind", turns: 2, charges: [{ n: "Play Rough", c: "7"}, { n: "Bulldoze", c: "5" }] },
+  { rank: 83, name: "Altaria (Shadow)", types: ["Dragon", "Flying"], fast: "Dragon Breath", turns: 1, charges: [{ n: "Sky Attack", c: "13-"}, { n: "Flamethrower", c: "14" }] },
+  { rank: 84, name: "Klefki", types: ["Steel", "Fairy"], fast: "Astonish", turns: 3, charges: [{ n: "Foul Play", c: "4"}, { n: "Play Rough", c: "6" }] },
+  { rank: 85, name: "Melmetal", types: ["Steel"], fast: "Thunder Shock", turns: 2, charges: [{ n: "Double Iron Bash", c: "4"}, { n: "Superpower", c: "5-" }] },
+  { rank: 86, name: "Turtonator", types: ["Fire", "Dragon"], fast: "Incinerate", turns: 5, charges: [{ n: "Brutal Swing", c: "2"}, { n: "Dragon Claw", c: "3-" }] },
+  { rank: 87, name: "Castform (Sunny)", types: ["Fire"], fast: "Ember", turns: 2, charges: [{ n: "Weather Ball Fire", c: "4"}, { n: "Solar Beam", c: "9" }] },
+  { rank: 88, name: "Charjabug (Shadow)", types: ["Bug", "Electric"], fast: "Volt Switch", turns: 4, charges: [{ n: "X-Scissor", c: "3-"}, { n: "Discharge", c: "3-" }] },
+  { rank: 89, name: "Feraligatr (Shadow)", types: ["Water"], fast: "Shadow Claw", turns: 2, charges: [{ n: "Hydro Cannon", c: "5"}, { n: "Ice Beam", c: "7" }] },
+  { rank: 90, name: "Thievul", types: ["Dark"], fast: "Sucker Punch", turns: 2, charges: [{ n: "Night Slash", c: "5"}, { n: "Play Rough", c: "9" }] },
+  { rank: 91, name: "Samurott (Shadow)", types: ["Water"], fast: "Fury Cutter", turns: 1, charges: [{ n: "Hydro Cannon", c: "10"}, { n: "Megahorn", c: "14" }] },
+  { rank: 92, name: "Giratina (Altered Shadow)", types: ["Ghost", "Dragon"], fast: "Dragon Breath", turns: 1, charges: [{ n: "Dragon Claw", c: "13-"}, { n: "Shadow Sneak", c: "13-" }] },
+  { rank: 93, name: "Primeape", types: ["Fighting"], fast: "Karate Chop", turns: 2, charges: [{ n: "Rage Fist", c: "4"}, { n: "Close Combat", c: "5" }] },
+  { rank: 94, name: "Weezing (Galarian)", types: ["Poison", "Fairy"], fast: "Fairy Wind", turns: 2, charges: [{ n: "Sludge", c: "5-"}, { n: "Brutal Swing", c: "4" }] },
+  { rank: 95, name: "Morpeko", types: ["Electric", "Dark"], fast: "Thunder Shock", turns: 2, charges: [{ n: "Aura Wheel", c: "5"}, { n: "Psychic Fangs", c: "4" }] },
+  { rank: 96, name: "Bronzong", types: ["Steel", "Psychic"], fast: "Confusion", turns: 4, charges: [{ n: "Weather Ball Water", c: "3-"}, { n: "Payback", c: "5-" }] },
+  { rank: 97, name: "Abomasnow (Shadow)", types: ["Grass", "Ice"], fast: "Powder Snow", turns: 2, charges: [{ n: "Weather Ball Ice", c: "5-"}, { n: "Energy Ball", c: "7" }] },
+  { rank: 98, name: "Dragalge", types: ["Poison", "Dragon"], fast: "Acid", turns: 2, charges: [{ n: "Aqua Tail", c: "5-"}, { n: "Outrage", c: "8-" }] },
+  { rank: 99, name: "Kingdra (Shadow)", types: ["Water", "Dragon"], fast: "Dragon Breath", turns: 1, charges: [{ n: "Swift", c: "9"}, { n: "Outrage", c: "15" }] },
+  { rank: 100, name: "Murkrow (Shadow)", types: ["Dark", "Flying"], fast: "Peck", turns: 2, charges: [{ n: "Drill Peck", c: "5"}, { n: "Foul Play", c: "5" }] }
+],
+     UL: [
+  { rank: 1, name: "Moltres (Galarian)", types: ["Dark", "Flying"], fast: "Sucker Punch", turns: 2, charges: [{ n: "Fly", c: "7-"}, { n: "Brave Bird", c: "8" }] },
+  { rank: 2, name: "Corviknight", types: ["Flying", "Steel"], fast: "Sand Attack", turns: 1, charges: [{ n: "Air Cutter", c: "9"}, { n: "Payback", c: "15" }] },
+  { rank: 3, name: "Lapras", types: ["Water", "Ice"], fast: "Psywave", turns: 1, charges: [{ n: "Sparkling Aria", c: "12-"}, { n: "Ice Beam", c: "14" }] },
+  { rank: 4, name: "Jellicent", types: ["Water", "Ghost"], fast: "Hex", turns: 3, charges: [{ n: "Surf", c: "4-"}, { n: "Shadow Ball", c: "4" }] },
+  { rank: 5, name: "Lapras (Shadow)", types: ["Water", "Ice"], fast: "Psywave", turns: 1, charges: [{ n: "Sparkling Aria", c: "12-"}, { n: "Ice Beam", c: "14" }] },
+  { rank: 6, name: "Empoleon", types: ["Water", "Steel"], fast: "Metal Sound", turns: 2, charges: [{ n: "Hydro Cannon", c: "5"}, { n: "Drill Peck", c: "5" }] },
+  { rank: 7, name: "Florges", types: ["Fairy"], fast: "Fairy Wind", turns: 2, charges: [{ n: "Chilling Water", c: "5"}, { n: "Trailblaze", c: "5" }] },
+  { rank: 8, name: "Empoleon (Shadow)", types: ["Water", "Steel"], fast: "Metal Sound", turns: 2, charges: [{ n: "Hydro Cannon", c: "5"}, { n: "Drill Peck", c: "5" }] },
+  { rank: 9, name: "Feraligatr (Shadow)", types: ["Water"], fast: "Shadow Claw", turns: 2, charges: [{ n: "Hydro Cannon", c: "5"}, { n: "Ice Beam", c: "7" }] },
+  { rank: 10, name: "Clefable", types: ["Fairy"], fast: "Fairy Wind", turns: 2, charges: [{ n: "Meteor Mash", c: "5"}, { n: "Moonblast", c: "7" }] },
+  { rank: 11, name: "Regidrago", types: ["Dragon"], fast: "Dragon Breath", turns: 1, charges: [{ n: "Dragon Energy", c: "12-"}, { n: "Vise Grip", c: "10" }] },
+  { rank: 12, name: "Malamar (Shadow)", types: ["Dark", "Psychic"], fast: "Psywave", turns: 1, charges: [{ n: "Foul Play", c: "10"}, { n: "Superpower", c: "10" }] },
+  { rank: 13, name: "Gastrodon", types: ["Water", "Ground"], fast: "Mud Slap", turns: 3, charges: [{ n: "Body Slam", c: "4-"}, { n: "Water Pulse", c: "5" }] },
+  { rank: 14, name: "Lickilicky", types: ["Normal"], fast: "Rollout", turns: 3, charges: [{ n: "Body Slam", c: "3"}, { n: "Shadow Ball", c: "4" }] },
+  { rank: 15, name: "Virizion", types: ["Grass", "Fighting"], fast: "Double Kick", turns: 3, charges: [{ n: "Leaf Blade", c: "3"}, { n: "Sacred Sword", c: "3" }] },
+  { rank: 16, name: "Feraligatr", types: ["Water"], fast: "Shadow Claw", turns: 2, charges: [{ n: "Hydro Cannon", c: "5"}, { n: "Ice Beam", c: "7" }] },
+  { rank: 17, name: "Forretress", types: ["Bug", "Steel"], fast: "Volt Switch", turns: 4, charges: [{ n: "Rock Tomb", c: "4-"}, { n: "Earthquake", c: "5-" }] },
+  { rank: 18, name: "Togekiss", types: ["Fairy", "Flying"], fast: "Peck", turns: 2, charges: [{ n: "Psyshock", c: "5"}, { n: "Aura Sphere", c: "5" }] },
+  { rank: 19, name: "Ludicolo", types: ["Water", "Grass"], fast: "Astonish", turns: 3, charges: [{ n: "Weather Ball Water", c: "4-"}, { n: "Leaf Storm", c: "6-" }] },
+  { rank: 20, name: "Walrein", types: ["Ice", "Water"], fast: "Powder Snow", turns: 2, charges: [{ n: "Icicle Spear", c: "5"}, { n: "Earthquake", c: "9-" }] },
+  { rank: 21, name: "Oranguru", types: ["Normal", "Psychic"], fast: "Confusion", turns: 4, charges: [{ n: "Brutal Swing", c: "3-"}, { n: "Trailblaze", c: "4-" }] },
+  { rank: 22, name: "Walrein (Shadow)", types: ["Ice", "Water"], fast: "Powder Snow", turns: 2, charges: [{ n: "Icicle Spear", c: "5"}, { n: "Earthquake", c: "9-" }] },
+  { rank: 23, name: "Malamar", types: ["Dark", "Psychic"], fast: "Psywave", turns: 1, charges: [{ n: "Foul Play", c: "10"}, { n: "Superpower", c: "10" }] },
+  { rank: 24, name: "Zygarde (Complete)", types: ["Dragon", "Ground"], fast: "Dragon Tail", turns: 3, charges: [{ n: "Crunch", c: "4"}, { n: "Earthquake", c: "6-" }] },
+  { rank: 25, name: "Doublade", types: ["Steel", "Ghost"], fast: "Shadow Claw", turns: 2, charges: [{ n: "Sacred Sword", c: "5-"}, { n: "Gyro Ball", c: "7-" }] },
+  { rank: 26, name: "Blastoise", types: ["Water"], fast: "Rollout", turns: 3, charges: [{ n: "Hydro Cannon", c: "4-"}, { n: "Skull Bash", c: "6" }] },
+  { rank: 27, name: "Toucannon (Shadow)", types: ["Normal", "Flying"], fast: "Peck", turns: 2, charges: [{ n: "Beak Blast", c: "7"}, { n: "Drill Peck", c: "5" }] },
+  { rank: 28, name: "Golisopod", types: ["Bug", "Water"], fast: "Fury Cutter", turns: 1, charges: [{ n: "X-Scissor", c: "10"}, { n: "Aqua Jet", c: "10" }] },
+  { rank: 29, name: "Ninetales (Alolan)", types: ["Ice", "Fairy"], fast: "Powder Snow", turns: 2, charges: [{ n: "Weather Ball Ice", c: "5-"}, { n: "Chilling Water", c: "6" }] },
+  { rank: 30, name: "Ninetales (Alolan Shadow)", types: ["Ice", "Fairy"], fast: "Powder Snow", turns: 2, charges: [{ n: "Weather Ball Ice", c: "5-"}, { n: "Chilling Water", c: "6" }] },
+  { rank: 31, name: "Dusknoir (Shadow)", types: ["Ghost"], fast: "Astonish", turns: 3, charges: [{ n: "Dynamic Punch", c: "5-"}, { n: "Shadow Punch", c: "4-" }] },
+  { rank: 32, name: "Kingdra", types: ["Water", "Dragon"], fast: "Dragon Breath", turns: 1, charges: [{ n: "Swift", c: "9"}, { n: "Outrage", c: "15" }] },
+  { rank: 33, name: "Kingdra (Shadow)", types: ["Water", "Dragon"], fast: "Dragon Breath", turns: 1, charges: [{ n: "Swift", c: "9"}, { n: "Outrage", c: "15" }] },
+  { rank: 34, name: "Giratina (Altered)", types: ["Ghost", "Dragon"], fast: "Dragon Breath", turns: 1, charges: [{ n: "Dragon Claw", c: "13-"}, { n: "Shadow Sneak", c: "13-" }] },
+  { rank: 35, name: "Drapion", types: ["Poison", "Dark"], fast: "Poison Sting", turns: 2, charges: [{ n: "Crunch", c: "5"}, { n: "Aqua Tail", c: "4" }] },
+  { rank: 36, name: "Dusknoir", types: ["Ghost"], fast: "Astonish", turns: 3, charges: [{ n: "Dynamic Punch", c: "5-"}, { n: "Shadow Punch", c: "4-" }] },
+  { rank: 37, name: "Tinkaton", types: ["Fairy", "Steel"], fast: "Fairy Wind", turns: 2, charges: [{ n: "Play Rough", c: "7"}, { n: "Bulldoze", c: "5" }] },
+  { rank: 38, name: "Cresselia", types: ["Psychic"], fast: "Confusion", turns: 4, charges: [{ n: "Grass Knot", c: "4"}, { n: "Moonblast", c: "5-" }] },
+  { rank: 39, name: "Guzzlord", types: ["Dark", "Dragon"], fast: "Dragon Tail", turns: 3, charges: [{ n: "Brutal Swing", c: "3"}, { n: "Dragon Claw", c: "5-" }] },
+  { rank: 40, name: "Mandibuzz", types: ["Dark", "Flying"], fast: "Snarl", turns: 3, charges: [{ n: "Foul Play", c: "4-"}, { n: "Shadow Ball", c: "4" }] },
+  { rank: 41, name: "Toucannon", types: ["Normal", "Flying"], fast: "Peck", turns: 2, charges: [{ n: "Beak Blast", c: "7"}, { n: "Drill Peck", c: "5" }] },
+  { rank: 42, name: "Turtonator", types: ["Fire", "Dragon"], fast: "Incinerate", turns: 5, charges: [{ n: "Brutal Swing", c: "2"}, { n: "Dragon Claw", c: "3-" }] },
+  { rank: 43, name: "Aurorus (Shadow)", types: ["Rock", "Ice"], fast: "Powder Snow", turns: 2, charges: [{ n: "Weather Ball Ice", c: "5-"}, { n: "Meteor Beam", c: "8-" }] },
+  { rank: 44, name: "Mewtwo (Armored)", types: ["Psychic"], fast: "Confusion", turns: 4, charges: [{ n: "Psystrike", c: "4-"}, { n: "Dynamic Punch", c: "4-" }] },
+  { rank: 45, name: "Runerigus", types: ["Ground", "Ghost"], fast: "Shadow Claw", turns: 2, charges: [{ n: "Rock Tomb", c: "7-"}, { n: "Shadow Ball", c: "7-" }] },
+  { rank: 46, name: "Samurott", types: ["Water"], fast: "Fury Cutter", turns: 1, charges: [{ n: "Hydro Cannon", c: "10"}, { n: "Megahorn", c: "14" }] },
+  { rank: 47, name: "Aurorus", types: ["Rock", "Ice"], fast: "Powder Snow", turns: 2, charges: [{ n: "Weather Ball Ice", c: "5-"}, { n: "Meteor Beam", c: "8-" }] },
+  { rank: 48, name: "Bellibolt", types: ["Electric"], fast: "Sucker Punch", turns: 2, charges: [{ n: "Parabolic Charge", c: "8-"}, { n: "Zap Cannon", c: "12-" }] },
+  { rank: 49, name: "Crustle", types: ["Bug", "Rock"], fast: "Fury Cutter", turns: 1, charges: [{ n: "X-Scissor", c: "10"}, { n: "Rock Wrecker", c: "13-" }] },
+  { rank: 50, name: "Hydreigon (Shadow)", types: ["Dark", "Dragon"], fast: "Dragon Breath", turns: 1, charges: [{ n: "Brutal Swing", c: "9"}, { n: "Fly", c: "12-" }] },
+  { rank: 51, name: "Steelix", types: ["Steel", "Ground"], fast: "Thunder Fang", turns: 2, charges: [{ n: "Crunch", c: "8-"}, { n: "Psychic Fangs", c: "6" }] },
+  { rank: 52, name: "Cradily", types: ["Rock", "Grass"], fast: "Acid", turns: 2, charges: [{ n: "Rock Tomb", c: "7-"}, { n: "Grass Knot", c: "7-" }] },
+  { rank: 53, name: "Kyurem", types: ["Dragon", "Ice"], fast: "Dragon Breath", turns: 1, charges: [{ n: "Glaciate", c: "10"}, { n: "Dragon Claw", c: "13-" }] },
+  { rank: 54, name: "Spiritomb", types: ["Ghost", "Dark"], fast: "Sucker Punch", turns: 2, charges: [{ n: "Shadow Ball", c: "8-"}, { n: "Rock Tomb", c: "8-" }] },
+  { rank: 55, name: "Giratina (Alt Shadow)", types: ["Ghost", "Dragon"], fast: "Dragon Breath", turns: 1, charges: [{ n: "Dragon Claw", c: "13-"}, { n: "Shadow Sneak", c: "13-" }] },
+  { rank: 56, name: "Kommo-o", types: ["Dragon", "Fighting"], fast: "Dragon Tail", turns: 3, charges: [{ n: "Clanging Scales", c: "4"}, { n: "Upper Hand", c: "4-" }] },
+  { rank: 57, name: "Cofagrigus", types: ["Ghost"], fast: "Shadow Claw", turns: 2, charges: [{ n: "Shadow Ball", c: "7-"}, { n: "Dark Pulse", c: "7-" }] },
+  { rank: 58, name: "Weezing (Galarian)", types: ["Poison", "Fairy"], fast: "Fairy Wind", turns: 2, charges: [{ n: "Brutal Swing", c: "4"}, { n: "Sludge", c: "5-" }] },
+  { rank: 59, name: "Cresselia (Shadow)", types: ["Psychic"], fast: "Confusion", turns: 4, charges: [{ n: "Grass Knot", c: "4"}, { n: "Moonblast", c: "5-" }] },
+  { rank: 60, name: "Grimmsnarl", types: ["Dark", "Fairy"], fast: "Sucker Punch", turns: 2, charges: [{ n: "Foul Play", c: "6"}, { n: "Play Rough", c: "9" }] },
+  { rank: 61, name: "Trevenant (Shadow)", types: ["Ghost", "Grass"], fast: "Shadow Claw", turns: 2, charges: [{ n: "Shadow Ball", c: "7-"}, { n: "Seed Bomb", c: "5" }] },
+  { rank: 62, name: "Dondozo", types: ["Water"], fast: "Water Gun", turns: 1, charges: [{ n: "Surf", c: "15"}, { n: "Outrage", c: "20" }] },
+  { rank: 63, name: "Blastoise (Shadow)", types: ["Water"], fast: "Rollout", turns: 3, charges: [{ n: "Hydro Cannon", c: "4-"}, { n: "Ice Beam", c: "5-" }] },
+  { rank: 64, name: "Cradily (Shadow)", types: ["Rock", "Grass"], fast: "Acid", turns: 2, charges: [{ n: "Rock Tomb", c: "7-"}, { n: "Grass Knot", c: "7-" }] },
+  { rank: 65, name: "Scizor (Shadow)", types: ["Bug", "Steel"], fast: "Bullet Punch", turns: 2, charges: [{ n: "Night Slash", c: "5"}, { n: "Trailblaze", c: "7-" }] },
+  { rank: 66, name: "Abomasnow (Shadow)", types: ["Grass", "Ice"], fast: "Powder Snow", turns: 2, charges: [{ n: "Weather Ball Ice", c: "5-"}, { n: "Energy Ball", c: "7" }] },
+  { rank: 67, name: "Cobalion", types: ["Steel", "Fighting"], fast: "Double Kick", turns: 3, charges: [{ n: "Sacred Sword", c: "3"}, { n: "Stone Edge", c: "5" }] },
+  { rank: 68, name: "Steelix (Shadow)", types: ["Steel", "Ground"], fast: "Thunder Fang", turns: 2, charges: [{ n: "Psychic Fangs", c: "6"}, { n: "Crunch", c: "8-" }] },
+  { rank: 69, name: "Weezing (Galarian Shadow)", types: ["Poison", "Fairy"], fast: "Fairy Wind", turns: 2, charges: [{ n: "Brutal Swing", c: "4"}, { n: "Sludge", c: "5-" }] },
+  { rank: 70, name: "Jirachi", types: ["Steel", "Psychic"], fast: "Confusion", turns: 4, charges: [{ n: "Doom Desire", c: "3"}, { n: "Aura Sphere", c: "3" }] },
+  { rank: 71, name: "Drapion (Shadow)", types: ["Poison", "Dark"], fast: "Poison Sting", turns: 2, charges: [{ n: "Aqua Tail", c: "4"}, { n: "Crunch", c: "5" }] },
+  { rank: 72, name: "Scizor", types: ["Bug", "Steel"], fast: "Bullet Punch", turns: 2, charges: [{ n: "Night Slash", c: "5"}, { n: "Trailblaze", c: "7-" }] },
+  { rank: 73, name: "Ninetales (Shadow)", types: ["Fire"], fast: "Ember", turns: 2, charges: [{ n: "Weather Ball Fire", c: "4"}, { n: "Overheat", c: "7-" }] },
+  { rank: 74, name: "Tentacruel", types: ["Water", "Poison"], fast: "Poison Sting", turns: 2, charges: [{ n: "Scald", c: "6"}, { n: "Payback", c: "7" }] },
+  { rank: 75, name: "Trevenant", types: ["Ghost", "Grass"], fast: "Shadow Claw", turns: 2, charges: [{ n: "Shadow Ball", c: "7-"}, { n: "Seed Bomb", c: "5" }] },
+  { rank: 76, name: "Annihilape (Shadow)", types: ["Fighting", "Ghost"], fast: "Counter", turns: 2, charges: [{ n: "Rage Fist", c: "6"}, { n: "Ice Punch", c: "7" }] },
+  { rank: 77, name: "Bombirdier", types: ["Flying", "Dark"], fast: "Sucker Punch", turns: 2, charges: [{ n: "Fly", c: "7-"}, { n: "Rock Tomb", c: "8-" }] },
+  { rank: 78, name: "Forretress (Shadow)", types: ["Bug", "Steel"], fast: "Volt Switch", turns: 4, charges: [{ n: "Rock Tomb", c: "4-"}, { n: "Earthquake", c: "5-" }] },
+  { rank: 79, name: "Sandslash (Alolan)", types: ["Ice", "Steel"], fast: "Powder Snow", turns: 2, charges: [{ n: "Ice Punch", c: "5"}, { n: "Drill Run", c: "6" }] },
+  { rank: 80, name: "Goodra", types: ["Dragon"], fast: "Dragon Breath", turns: 1, charges: [{ n: "Aqua Tail", c: "9"}, { n: "Power Whip", c: "13-" }] },
+  { rank: 81, name: "Gourgeist (Super)", types: ["Ghost", "Grass"], fast: "Incinerate", turns: 5, charges: [{ n: "Shadow Ball", c: "3-"}, { n: "Seed Bomb", c: "2" }] },
+  { rank: 82, name: "Abomasnow", types: ["Grass", "Ice"], fast: "Powder Snow", turns: 2, charges: [{ n: "Weather Ball Ice", c: "5-"}, { n: "Energy Ball", c: "7" }] },
+  { rank: 83, name: "Samurott (Shadow)", types: ["Water"], fast: "Fury Cutter", turns: 1, charges: [{ n: "Hydro Cannon", c: "10"}, { n: "Megahorn", c: "14" }] },
+  { rank: 84, name: "Seaking", types: ["Water"], fast: "Peck", turns: 2, charges: [{ n: "Drill Run", c: "6"}, { n: "Icy Wind", c: "6" }] },
+  { rank: 85, name: "Stunfisk", types: ["Ground", "Electric"], fast: "Thunder Shock", turns: 2, charges: [{ n: "Mud Bomb", c: "5-"}, { n: "Discharge", c: "5-" }] },
+  { rank: 86, name: "Skeledirge", types: ["Fire", "Ghost"], fast: "Incinerate", turns: 5, charges: [{ n: "Torch Song", c: "3-"}, { n: "Shadow Ball", c: "3-" }] },
+  { rank: 87, name: "Gyarados (Shadow)", types: ["Water", "Flying"], fast: "Dragon Breath", turns: 1, charges: [{ n: "Aqua Tail", c: "9"}, { n: "Crunch", c: "12-" }] },
+  { rank: 88, name: "Ninetales", types: ["Fire"], fast: "Ember", turns: 2, charges: [{ n: "Weather Ball Fire", c: "4"}, { n: "Overheat", c: "7-" }] },
+  { rank: 89, name: "Crustle (Shadow)", types: ["Bug", "Rock"], fast: "Fury Cutter", turns: 1, charges: [{ n: "X-Scissor", c: "10"}, { n: "Rock Wrecker", c: "13-" }] },
+  { rank: 90, name: "Gyarados", types: ["Water", "Flying"], fast: "Dragon Breath", turns: 1, charges: [{ n: "Aqua Tail", c: "9"}, { n: "Crunch", c: "12-" }] },
+  { rank: 91, name: "Miltank", types: ["Normal"], fast: "Rollout", turns: 3, charges: [{ n: "Body Slam", c: "3"}, { n: "Ice Beam", c: "5-" }] },
+  { rank: 92, name: "Raikou (Shadow)", types: ["Electric"], fast: "Thunder Shock", turns: 2, charges: [{ n: "Wild Charge", c: "5"}, { n: "Aura Sphere", c: "5-" }] },
+  { rank: 93, name: "Drifblim (Shadow)", types: ["Ghost", "Flying"], fast: "Hex", turns: 3, charges: [{ n: "Shadow Ball", c: "4"}, { n: "Icy Wind", c: "4-" }] },
+  { rank: 94, name: "Toedscruel", types: ["Ground", "Grass"], fast: "Mud Slap", turns: 3, charges: [{ n: "Seed Bomb", c: "4"}, { n: "Wrap", c: "5-" }] },
+  { rank: 95, name: "Annihilape", types: ["Fighting", "Ghost"], fast: "Counter", turns: 2, charges: [{ n: "Rage Fist", c: "6"}, { n: "Ice Punch", c: "7" }] },
+  { rank: 96, name: "Gourgeist (Large)", types: ["Ghost", "Grass"], fast: "Incinerate", turns: 5, charges: [{ n: "Shadow Ball", c: "3-"}, { n: "Seed Bomb", c: "2" }] },
+  { rank: 97, name: "Dragalge", types: ["Poison", "Dragon"], fast: "Dragon Tail", turns: 3, charges: [{ n: "Aqua Tail", c: "3"}, { n: "Outrage", c: "5" }] },
+  { rank: 98, name: "Latias", types: ["Dragon", "Psychic"], fast: "Dragon Breath", turns: 1, charges: [{ n: "Mist Ball", c: "15"}, { n: "Aura Sphere", c: "10" }] },
+  { rank: 99, name: "Raikou", types: ["Electric"], fast: "Thunder Shock", turns: 2, charges: [{ n: "Wild Charge", c: "5"}, { n: "Aura Sphere", c: "5-" }] },
+  { rank: 100, name: "Cetitan", types: ["Ice"], fast: "Powder Snow", turns: 2, charges: [{ n: "Icicle Spear", c: "5"}, { n: "Superpower", c: "5" }] }
+]
+        };
+
+    const typeTable = {
+      Normal: { weak: ['Fighting'], resist: [], immune: ['Ghost'] },
+      Fire: { weak: ['Water', 'Ground', 'Rock'], resist: ['Fire', 'Grass', 'Ice', 'Bug', 'Steel', 'Fairy'], immune: [] },
+      Water: { weak: ['Grass', 'Electric'], resist: ['Fire', 'Water', 'Ice', 'Steel'], immune: [] },
+      Grass: { weak: ['Fire', 'Ice', 'Poison', 'Flying', 'Bug'], resist: ['Water', 'Grass', 'Electric', 'Ground'], immune: [] },
+      Electric: { weak: ['Ground'], resist: ['Electric', 'Flying', 'Steel'], immune: [] },
+      Ice: { weak: ['Fire', 'Fighting', 'Rock', 'Steel'], resist: ['Ice'], immune: [] },
+      Fighting: { weak: ['Psychic', 'Flying', 'Fairy'], resist: ['Bug', 'Rock', 'Dark'], immune: [] },
+      Poison: { weak: ['Ground', 'Psychic'], resist: ['Grass', 'Fighting', 'Poison', 'Bug', 'Fairy'], immune: [] },
+      Ground: { weak: ['Water', 'Grass', 'Ice'], resist: ['Poison', 'Rock'], immune: ['Electric'] },
+      Flying: { weak: ['Electric', 'Ice', 'Rock'], resist: ['Grass', 'Fighting', 'Bug'], immune: ['Ground'] },
+      Psychic: { weak: ['Bug', 'Ghost', 'Dark'], resist: ['Fighting', 'Psychic'], immune: [] },
+      Bug: { weak: ['Fire', 'Flying', 'Rock'], resist: ['Grass', 'Fighting', 'Ground'], immune: [] },
+      Rock: { weak: ['Water', 'Grass', 'Fighting', 'Ground', 'Steel'], resist: ['Normal', 'Fire', 'Poison', 'Flying'], immune: [] },
+      Ghost: { weak: ['Ghost', 'Dark'], resist: ['Poison', 'Bug'], immune: ['Normal', 'Fighting'] },
+      Dragon: { weak: ['Ice', 'Dragon', 'Fairy'], resist: ['Fire', 'Water', 'Grass', 'Electric'], immune: [] },
+      Dark: { weak: ['Fighting', 'Bug', 'Fairy'], resist: ['Ghost', 'Dark'], immune: ['Psychic'] },
+      Steel: { weak: ['Fire', 'Fighting', 'Ground'], resist: ['Normal', 'Grass', 'Ice', 'Flying', 'Psychic', 'Bug', 'Rock', 'Dragon', 'Steel', 'Fairy'], immune: ['Poison'] },
+      Fairy: { weak: ['Poison', 'Steel'], resist: ['Fighting', 'Bug', 'Dark'], immune: ['Dragon'] }
+    };
+
+    const MULT = { weak: 1.6, resist: 0.625, immune: 0.39 };
+    let score = 0, streak = 0, currentTarget = null, currentMove = null;
+
+    function getCycleString(moveCode) {
+      const base = parseInt(moveCode);
+      return moveCode.includes("-") ? `${base}-${base-1}-${base}-${base-1}` : `${base}-${base}-${base}-${base}`;
+    }
+
+    function showTab(tabName) {
+      document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+      document.getElementById('quiz-view').classList.add('hidden');
+      document.getElementById('search-view').classList.add('hidden');
+      if(tabName === 'quiz') {
+        document.getElementById('q-tab').classList.add('active');
+        document.getElementById('quiz-view').classList.remove('hidden');
+        initQuiz();
+      } else {
+        document.getElementById('s-tab').classList.add('active');
+        document.getElementById('search-view').classList.remove('hidden');
+        handleSearch();
+      }
+    }
+
+    function handleSearch() {
+      const leagueFilter = document.getElementById('searchLeagueFilter').value;
+      const term = document.getElementById('searchInput').value.toLowerCase();
+      const listDiv = document.getElementById('search-list');
+      
+      let pool = [];
+      if(leagueFilter === 'ALL') {
+        Object.keys(database).forEach(lg => database[lg].forEach(p => pool.push({...p, league: lg})));
+      } else {
+        database[leagueFilter].forEach(p => pool.push({...p, league: leagueFilter}));
+      }
+
+      const filtered = pool
+        .filter(p => p.name.toLowerCase().includes(term))
+        .sort((a, b) => a.rank - b.rank);
+
+      listDiv.innerHTML = filtered.map(p => `
+        <div class="poke-list-item" onclick="viewPokemon('${p.name}', '${p.league}')">
+            <div class="league-tag">${p.league}</div>
+            <div class="rank-tag">#${p.rank}</div>
+            <h3>${p.name}</h3>
+            <span style="font-size: 0.7rem; color: #94a3b8;">${p.types.join(' / ')}</span>
+        </div>
+      `).join('');
+      toggleSearchDetail(false);
+    }
+
+    function viewPokemon(name, league) {
+      const poke = database[league].find(p => p.name === name);
+      const detailDiv = document.getElementById('detail-content');
+      detailDiv.innerHTML = `
+        <div class="card quiz-card">
+          <div class="rank-tag" style="position:static; margin-bottom:10px;">RANK #${poke.rank}</div>
+          <div class="pokemon-name">${poke.name}</div>
+          <div class="turn-badge">${poke.fast} (${poke.turns}T)</div>
+          ${poke.charges.map(m => `<div class="move-item"><span>${m.n}</span> <strong>${getCycleString(m.c)}</strong></div>`).join('')}
+        </div>
+        <div class="card type-card">
+          <div class="type-display">${poke.types.join(' / ')}</div>
+          <div id="s-weak"></div><div id="s-resist"></div>
+        </div>`;
+      toggleSearchDetail(true);
+      renderTypeGraph(poke.types, 's-weak', 's-resist', null);
+    }
+
+    function toggleSearchDetail(show) {
+      document.getElementById('search-list').classList.toggle('hidden', show);
+      document.getElementById('search-detail').classList.toggle('hidden', !show);
+    }
+
+    function renderTypeGraph(types, weakID, resistID, headerID) {
+      if(headerID) document.getElementById(headerID).innerText = "TYPES: " + types.join(' / ');
+      const eff = {};
+      types.forEach(t => {
+        const data = typeTable[t];
+        data.weak.forEach(w => eff[w] = (eff[w] || 1) * MULT.weak);
+        data.resist.forEach(r => eff[r] = (eff[r] || 1) * MULT.resist);
+        data.immune.forEach(i => eff[i] = (eff[i] || 1) * MULT.immune);
+      });
+      const wBox = document.getElementById(weakID);
+      const rBox = document.getElementById(resistID);
+      wBox.innerHTML = '<span class="type-label" style="font-weight:bold; color:#ef4444;">Weaknesses</span>';
+      rBox.innerHTML = '<span class="type-label" style="font-weight:bold; color:#22c55e;">Resistances</span>';
+      
+      Object.entries(eff).filter(x => Math.abs(x[1]-1)>0.01).sort((a,b)=>b[1]-a[1]).forEach(([type, val]) => {
+        const row = document.createElement('div');
+        row.className = 'graph-row';
+        let label = val >= 2.5 ? "2.56x" : val > 1.5 ? "1.6x" : val < 0.4 ? "0.39x" : "0.63x";
+        row.innerHTML = `<div class="graph-info"><span>${type}</span><span>${label}</span></div>
+          <div class="bar-bg"><div class="bar-fill ${val > 1 ? 'weak-fill' : val < 0.4 ? 'immune-fill' : 'resist-fill'}" style="width:${Math.min(100,(val/2.56)*100)}%"></div></div>`;
+        if (val > 1) wBox.appendChild(row); else rBox.appendChild(row);
+      });
+    }
+
+    function initQuiz() {
+      const league = document.getElementById('leagueSelect').value;
+      const depth = parseInt(document.getElementById('depthSelect').value);
+      const pool = database[league].filter(p => p.rank <= depth);
+      
+      if (pool.length === 0) {
+        document.getElementById('quiz-engine').innerHTML = `<p style='padding:20px; color:#fbbf24; font-weight:bold;'>Database for ${league} is currently empty!</p>`;
+        return;
+      }
+
+      currentTarget = pool[Math.floor(Math.random() * pool.length)];
+      currentMove = currentTarget.charges[Math.floor(Math.random() * currentTarget.charges.length)];
+      renderTypeGraph(currentTarget.types, 'weak-box', 'resist-box', 'q-types');
+      renderQuiz();
+    }
+
+    function renderQuiz() {
+      const engine = document.getElementById('quiz-engine');
+      document.getElementById('feedback').innerText = '';
+      const correct = getCycleString(currentMove.c);
+      let opts = new Set([correct]);
+      while(opts.size < 4) {
+        let randVal = Math.max(1, parseInt(currentMove.c) + (Math.floor(Math.random() * 5) - 2));
+        opts.add(getCycleString(currentMove.c.includes("-") ? randVal + "-" : randVal.toString()));
+      }
+      let sortedOpts = Array.from(opts).sort();
+      engine.innerHTML = `
+        <div class="rank-tag" style="position:static; margin-bottom:5px;">RANK #${currentTarget.rank}</div>
+        <div class="pokemon-name">${currentTarget.name}</div>
+        <div class="turn-badge">${currentTarget.fast} (${currentTarget.turns}T)</div>
+        <p>How many for <strong>${currentMove.n}</strong>?</p>
+        <div class="choices">${sortedOpts.map(o => `<button class="opt" onclick="checkAnswer('${o}', this)">${o}</button>`).join('')}</div>`;
+    }
+
+    function checkAnswer(guess, btn) {
+      const btns = document.querySelectorAll('.opt');
+      btns.forEach(b => b.disabled = true);
+      const correct = getCycleString(currentMove.c);
+      const fb = document.getElementById('feedback');
+      if(guess === correct) {
+        btn.classList.add('correct'); score += 10; streak++; fb.innerText = "🎯 CORRECT!"; fb.style.color = "#22c55e";
+      } else {
+        btn.classList.add('wrong'); streak = 0; fb.innerText = `❌ IT'S ${correct}`; fb.style.color = "#ef4444";
+        btns.forEach(b => { if(b.innerText === correct) b.classList.add('correct'); });
+      }
+      document.getElementById('score').innerText = score; document.getElementById('streak').innerText = streak;
+      setTimeout(initQuiz, 2000);
+    }
+    window.onload = () => initQuiz();
+  </script>
+</body>
+</html>
